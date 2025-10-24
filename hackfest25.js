@@ -299,9 +299,12 @@ function mainPageHTML({ user }) {
     <header class="app-bar">
       <div class="left">
         <button id="hamburger" class="btn-hamburger" aria-label="Open menu">
-          <span class="bar bar1"></span>
-          <span class="bar bar2"></span>
-          <span class="bar bar3"></span>
+          <!-- simple bars icon -->
+          <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect y="0.5" width="18" height="2" rx="1" fill="white" opacity="0.95"/>
+            <rect y="6" width="18" height="2" rx="1" fill="white" opacity="0.8"/>
+            <rect y="11.5" width="18" height="2" rx="1" fill="white" opacity="0.7"/>
+          </svg>
         </button>
       </div>
 
@@ -523,3 +526,4 @@ function escapeHtml(s) {
     if (!s) return '';
     return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 }
+
