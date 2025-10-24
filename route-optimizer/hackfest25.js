@@ -1,4 +1,7 @@
+// ...existing code...
 /**
+ * app.js
+ *
  * Single-file Node.js + Express prototype for a route-optimization web app.
  * - Frontend served inline (main page, login, signup)
  * - Backend endpoints for auth (SQLite) and route lookup (OSRM + Nominatim)
@@ -12,8 +15,12 @@
  *
  * 3) Run:
  *    node hackfest25.js
+ *
+ * Notes:
+ * - Default root redirects to /login when not authenticated (signup/login page stays untouched).
+ * - Main page defaults to light theme; toggle switches to dark (dark = previous appearance).
  */
-
+ 
 const express = require('express');
 const fetch = require('node-fetch');
 const sqlite3 = require('sqlite3').verbose();
@@ -21,7 +28,6 @@ const bcrypt = require('bcrypt');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -37,7 +43,6 @@ app.use(session({
     saveUninitialized: false,
     cookie: { secure: false }
 }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Simple SQLite DB for users ---
 const db = new sqlite3.Database('./app.db');
@@ -68,7 +73,6 @@ async function getDirections(origin, destination) {
     const o = await geocode(origin);
     const d = await geocode(destination);
 
-    // OSRM public demo server — for production self-host or use a paid provider
     const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?alternatives=true&overview=full&geometries=geojson`;
     const r = await fetch(osrmUrl);
     const data = await r.json();
@@ -79,7 +83,7 @@ async function getDirections(origin, destination) {
         routes: data.routes.map(rt => ({
             duration: rt.duration,
             distance: rt.distance,
-            geometry: rt.geometry // geojson geometry
+            geometry: rt.geometry
         }))
     };
 }
@@ -125,9 +129,8 @@ function authPageHTML(title, action, buttonText) {
 </html>
 `;
 }
-
 // --- Routes ---
-// If not authenticated, redirect to login
+// Default root: if not authenticated, go to login/signup (signup/login pages unchanged)
 app.get('/', (req, res) => {
     if (!req.session.userId) return res.redirect('/login');
     res.send(mainPageHTML({
@@ -135,7 +138,7 @@ app.get('/', (req, res) => {
     }));
 });
 
-// Login pages
+// Login pages (unchanged)
 app.get('/login', (req, res) => {
     res.send(authPageHTML('Login', '/login', 'Login'));
 });
@@ -151,7 +154,7 @@ app.post('/login', (req, res) => {
     });
 });
 
-// Signup
+// Signup (unchanged)
 app.get('/signup', (req, res) => {
     res.send(authPageHTML('Sign Up', '/signup', 'Create account'));
 });
@@ -187,11 +190,6 @@ app.post('/route', async (req, res) => {
     }
 });
 
-// Serve hackfest2 page from public folder
-app.get('/hackfest2', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'hackfest2.html'));
-});
-
 // Simple placeholder pages for "other pages" mentioned
 app.get('/settings', requireAuth, (req, res) => {
     res.send(simplePage('Settings', '<p>Settings page (placeholder)</p>'));
@@ -206,6 +204,7 @@ app.listen(PORT, () => {
 });
 
 // --- HTML templates (inline for single-file demo) ---
+// mainPageHTML: updated to default light theme; toggle switches to dark (previous look).
 function mainPageHTML({ user }) {
     return `
 <!doctype html>
@@ -216,58 +215,71 @@ function mainPageHTML({ user }) {
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     :root{
-      --bg:#0b0b0d;
-      --card:#0f1720;
-      --muted:#9aa6b2;
-      --accent1:#7c3aed; /* purple */
-      --accent2:#16a34a; /* green */
-      --white:#ffffff;
-      --glass: rgba(255,255,255,0.04);
+      /* LIGHT theme = default (inverts previous dark look) */
+      --bg: #f7f8fb;
+      --card: #ffffff;
+      --muted: #5b6b79;
+      --accent1: #7c3aed; /* purple */
+      --accent2: #16a34a; /* green */
+      --white: #071033;   /* text color on light bg */
+      --glass: rgba(0,0,0,0.04);
       --soft: 12px;
     }
-    html,body{height:100%;margin:0;font-family:Inter,Inter var,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,#05060a 0%, #0b0b0d 100%);color:var(--white)}
+    html,body{height:100%;margin:0;font-family:Inter,Inter var,Segoe UI,Helvetica,Arial;background:var(--bg);color:var(--white)}
     .app-shell{display:flex;flex-direction:column;height:100%}
     header.app-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;gap:12px;background:transparent}
     .left, .center, .right{display:flex;align-items:center;gap:12px}
-    /* hamburger */
-    .btn-hamburger{width:44px;height:44px;border-radius:999px;background:var(--glass);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:all .18s ease}
-    .btn-hamburger:hover{transform:scale(1.04);box-shadow:0 6px 18px rgba(124,58,237,0.12)}
+    /* hamburger replaced with three spans for morphing */
+    .btn-hamburger{width:44px;height:44px;border-radius:999px;background:var(--glass);display:flex;align-items:center;justify-content:center;border:1px solid rgba(7,16,51,0.06);cursor:pointer;transition:transform .32s cubic-bezier(.2,.9,.3,1), box-shadow .18s ease}
+    .btn-hamburger:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(124,58,237,0.16)}
+    .btn-hamburger .bar{display:block;width:18px;height:2px;background:var(--white);border-radius:2px;transition:all .28s ease}
+    .btn-hamburger .bar + .bar{margin-top:5px}
+    /* morph to X when open */
+    .btn-hamburger.open .bar1{transform: translateY(7px) rotate(45deg)}
+    .btn-hamburger.open .bar2{opacity:0; transform:scaleX(0)}
+    .btn-hamburger.open .bar3{transform: translateY(-7px) rotate(-45deg)}
+    /* shift along with panel so it's accessible */
+    .btn-hamburger.shift{transform:translateX(280px)}
     .logo-title{font-weight:700;font-size:18px;color:var(--white);letter-spacing:0.6px}
     /* company name centered */
     .company{font-size:20px;font-weight:700;color:var(--white);text-align:center;flex:1}
     /* profile */
-    .profile-btn{width:44px;height:44px;border-radius:999px;background:linear-gradient(135deg,var(--accent2),#10b981);display:flex;align-items:center;justify-content:center;color:#031018;font-weight:700;cursor:pointer;border:2px solid rgba(255,255,255,0.06);transition:transform .15s ease}
-    .profile-btn:hover{transform:scale(1.06)}
-    /* slide out menu */
-    .side-panel{position:fixed;left:0;top:0;height:100%;width:280px;background:linear-gradient(180deg,rgba(12,15,21,0.98),rgba(8,10,14,0.98));backdrop-filter:blur(6px);box-shadow:4px 0 40px rgba(2,6,23,0.6);transform:translateX(-110%);transition:transform .32s cubic-bezier(.2,.9,.3,1);z-index:60;padding:26px;border-right:1px solid rgba(255,255,255,0.03)}
+    .profile-btn{width:44px;height:44px;border-radius:999px;background:linear-gradient(135deg,var(--accent2),#10b981);display:flex;align-items:center;justify-content:center;color:#031018;font-weight:700;cursor:pointer;border:2px solid rgba(7,16,51,0.06);transition:transform .15s ease, box-shadow .12s ease}
+    .profile-btn:hover{transform:scale(1.06);box-shadow:0 12px 30px rgba(124,58,237,0.14)}
+    /* side-panel */
+    .side-panel{position:fixed;left:0;top:0;height:100%;width:280px;background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,251,0.98));backdrop-filter:blur(6px);box-shadow:4px 0 40px rgba(2,6,23,0.06);transform:translateX(-110%);transition:transform .32s cubic-bezier(.2,.9,.3,1);z-index:60;padding:26px;border-right:1px solid rgba(7,16,51,0.04)}
     .side-panel.open{transform:translateX(0)}
     .side-panel h3{margin:0 0 12px 0;color:var(--white)}
     .side-item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;background:transparent;color:var(--muted);margin-bottom:8px;cursor:pointer;transition:all .18s ease}
-    .side-item:hover{background:rgba(255,255,255,0.02);color:var(--white);transform:translateX(6px)}
+    .side-item:hover{background:rgba(124,58,237,0.06);color:var(--white);transform:translateX(6px)}
     /* profile dropdown */
-    .profile-menu{position:absolute;right:12px;top:64px;background:var(--card);padding:8px;border-radius:10px;box-shadow:0 10px 30px rgba(2,6,23,0.6);min-width:160px;display:none;z-index:70;border:1px solid rgba(255,255,255,0.03)}
+    .profile-menu{position:absolute;right:12px;top:64px;background:var(--card);padding:8px;border-radius:10px;box-shadow:0 10px 30px rgba(2,6,23,0.06);min-width:160px;display:none;z-index:70;border:1px solid rgba(7,16,51,0.04)}
     .profile-menu.show{display:block}
     .profile-menu a{display:block;padding:8px 10px;color:var(--muted);text-decoration:none;border-radius:8px}
-    .profile-menu a:hover{background:rgba(255,255,255,0.02);color:var(--white)}
+    .profile-menu a:hover{background:rgba(124,58,237,0.06);color:var(--white)}
     /* main content */
     main.content{display:flex;flex-direction:column;align-items:center;gap:18px;padding:18px 16px 26px 16px;flex:1}
-    .card{width:100%;max-width:980px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+    .card{width:100%;max-width:980px;background:var(--card);border-radius:14px;padding:16px;border:1px solid rgba(7,16,51,0.04);box-shadow:0 8px 30px rgba(2,6,23,0.04)}
     .controls-row{display:flex;gap:14px;align-items:flex-start}
     /* form */
     form#routeForm{display:flex;flex-direction:column;gap:10px;align-items:stretch;min-width:320px}
     label.field-label{font-size:13px;color:var(--muted);margin-bottom:6px}
     input.text, button.action{
-      border-radius:12px;padding:12px 14px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);color:var(--white);font-size:15px;outline:none;transition:box-shadow .15s ease, transform .12s ease, border-color .12s ease;
+      border-radius:12px;padding:12px 14px;border:1px solid rgba(7,16,51,0.06);background:linear-gradient(180deg,rgba(7,16,51,0.02),transparent);color:var(--white);font-size:15px;outline:none;transition:box-shadow .15s ease, transform .12s ease, border-color .12s ease;
       width:100%;box-sizing:border-box;
     }
-    input.text::placeholder{color:rgba(255,255,255,0.35)}
+    input.text::placeholder{color:rgba(7,16,51,0.35)}
     input.text:focus{box-shadow:0 8px 20px rgba(124,58,237,0.12);border-color:var(--accent1)}
     .from-to{display:flex;flex-direction:column;gap:8px}
     .btn-group{display:flex;gap:10px;align-items:center}
     button.action{background:linear-gradient(90deg,var(--accent1),var(--accent2));border:0;color:#fff;padding:12px 16px;border-radius:12px;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease}
-    button.action:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(16,185,129,0.12)}
+    /* purple glow under buttons on hover */
+    button.action:hover{transform:translateY(-3px);box-shadow:0 14px 40px rgba(124,58,237,0.28)}
+    /* secondary clear button style */
+    .action.clear{background:transparent;border:1px solid rgba(7,16,51,0.06);color:var(--white)}
+    .action.clear:hover{box-shadow:0 10px 30px rgba(124,58,237,0.14)}
     /* map */
-    #map{height:52vh;border-radius:12px;border:1px solid rgba(255,255,255,0.04);overflow:hidden}
+    #map{height:52vh;border-radius:12px;border:1px solid rgba(7,16,51,0.04);overflow:hidden}
     /* info */
     #info{color:var(--muted);margin-top:8px}
     /* responsive */
@@ -286,7 +298,7 @@ function mainPageHTML({ user }) {
   <div class="app-shell">
     <header class="app-bar">
       <div class="left">
-        <button id="hamburger" class="btn-hamburger" aria-label="Open menu">
+	<button id="hamburger" class="btn-hamburger" aria-label="Open menu">
           <!-- simple bars icon -->
           <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect y="0.5" width="18" height="2" rx="1" fill="white" opacity="0.95"/>
@@ -334,14 +346,6 @@ function mainPageHTML({ user }) {
         <div style="color:var(--muted)">›</div>
       </div>
 
-      <div class="side-item" onclick="location.href='/hackfest2'">
-        <div>
-          <div style="font-weight:600;color:var(--white)">Hackfest2</div>
-          <div style="font-size:13px;color:var(--muted)">Open hackfest2 resources</div>
-        </div>
-        <div style="color:var(--muted)">›</div>
-      </div>
-
       <div style="margin-top:18px;color:var(--muted);font-size:13px">Quick actions</div>
       <div style="display:flex;gap:10px;margin-top:8px">
         <button class="action" onclick="document.getElementById('themeSwitch').click()">Toggle Theme</button>
@@ -366,7 +370,7 @@ function mainPageHTML({ user }) {
               </div>
               <div style="display:flex;gap:10px;margin-top:8px;align-items:center">
                 <button type="submit" class="action">Find routes</button>
-                <button type="button" class="action" id="clearBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--white)">Clear</button>
+                <button type="button" class="action clear" id="clearBtn">Clear</button>
               </div>
             </form>
           </div>
@@ -504,119 +508,11 @@ function mainPageHTML({ user }) {
       }
     });
   </script>
-// ...existing code...
-  <style>
-    /* ...existing CSS... */
-
-    /* transition overlay for smooth page switch */
-    #pageTransition {
-      position:fixed;
-      inset:0;
-      pointer-events:none;
-      background: radial-gradient(circle at 30% 20%, rgba(124,58,237,0.12), rgba(16,185,129,0.06));
-      opacity:0;
-      transition:opacity .36s ease, transform .36s ease;
-      transform: scale(1.02);
-      z-index:120;
-    }
-    #pageTransition.show {
-      opacity:1;
-      pointer-events:auto;
-      transform: scale(1);
-    }
-
-    /* ensure hamburger shifts smoothly with panel */
-    .btn-hamburger.shift { transition: transform .32s cubic-bezier(.2,.9,.3,1); transform: translateX(0); }
-    .btn-hamburger.shift.open { transform: translateX(280px); }
-
-    /* ...existing CSS... */
-  </style>
-</head>
-<body>
-  <div class="app-shell">
-    <!-- ...existing code... -->
-
-    <nav id="sidePanel" class="side-panel" aria-hidden="true">
-      <h3>Menu</h3>
-      <div class="side-item" id="themeToggle">
-        <!-- ...existing code... -->
-      </div>
-
-      <div class="side-item" onclick="location.href='/settings'">
-        <!-- ...existing code... -->
-      </div>
-
-      <!-- changed: remove inline onclick and add id to hook JS for smooth transition -->
-      <div class="side-item" id="hackfestTab">
-        <div>
-          <div style="font-weight:600;color:var(--white)">Hackfest2</div>
-          <div style="font-size:13px;color:var(--muted)">Open hackfest2 resources</div>
-        </div>
-        <div style="color:var(--muted)">›</div>
-      </div>
-
-      <!-- ...existing code... -->
-    </nav>
-
-    <!-- ...existing code... -->
-  </div>
-
-  <!-- overlay used to animate before navigating to hackfest2 -->
-  <div id="pageTransition" aria-hidden="true"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    // ...existing client JS...
-
-    // ensure hamburger shift class behavior (keeps it accessible while panel open)
-    function openPanel() {
-      sidePanel.classList.add('open');
-      hamburger.classList.add('open');
-      hamburger.classList.add('shift');
-    }
-    function closePanel() {
-      sidePanel.classList.remove('open');
-      hamburger.classList.remove('open');
-      hamburger.classList.remove('shift');
-    }
-
-    // Smooth transition to hackfest2: close panel, show overlay, then navigate
-    const hackfestTab = document.getElementById('hackfestTab');
-    const pageTransition = document.getElementById('pageTransition');
-    if (hackfestTab) {
-      hackfestTab.addEventListener('click', (e) => {
-        e.preventDefault();
-        // animate: close panel and morph hamburger to X
-        closePanel();
-        // small delay so panel close animation starts
-        setTimeout(() => {
-          pageTransition.classList.add('show');
-        }, 80);
-        // navigate after overlay shown
-        setTimeout(() => {
-          window.location.href = '/hackfest2';
-        }, 420); // slightly longer than CSS transition
-      });
-    }
-
-    // keep previous handlers that close panel when side-item clicked
-    document.querySelectorAll('.side-item').forEach(item => {
-      item.addEventListener('click', () => {
-        // if hackfestTab was clicked, handler above already runs; this keeps behaviour for others
-        if (item.id === 'hackfestTab') return;
-        closePanel();
-      });
-    });
-
-    // ...existing client JS...
-  </script>
 </body>
 </html>
 `;
 }
-
 // ...existing code...
-
 
 function simplePage(title, content) {
     return `
@@ -629,4 +525,4 @@ function simplePage(title, content) {
 function escapeHtml(s) {
     if (!s) return '';
     return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-}
+} 
