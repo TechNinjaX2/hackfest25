@@ -1,0 +1,19 @@
+{
+  "name": "route-optimizer",
+  "version": "0.1.0",
+  "main": "hackfest25.js",
+  "scripts": {
+    "start": "node hackfest25.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.0",
+    "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "node-fetch": "^2.6.7",
+    "open": "^10.2.0",
+    "sqlite3": "^5.1.6"
+  }
+}
